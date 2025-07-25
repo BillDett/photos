@@ -28,7 +28,7 @@ func (h *AlbumHandler) CreateAlbum(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": processValidationError(err)})
 		return
 	}
 
@@ -136,12 +136,12 @@ func (h *AlbumHandler) UpdateAlbum(c *gin.Context) {
 	}
 
 	var req struct {
-		Name        string `json:"name" binding:"required,min=1,max=100"`
-		Description string `json:"description" binding:"max=500"`
+		Name        *string `json:"name,omitempty" binding:"omitempty,min=1,max=100"`
+		Description *string `json:"description,omitempty" binding:"omitempty,max=500"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": processValidationError(err)})
 		return
 	}
 
@@ -155,9 +155,13 @@ func (h *AlbumHandler) UpdateAlbum(c *gin.Context) {
 		return
 	}
 
-	// Update fields
-	album.Name = req.Name
-	album.Description = req.Description
+	// Update only provided fields
+	if req.Name != nil {
+		album.Name = *req.Name
+	}
+	if req.Description != nil {
+		album.Description = *req.Description
+	}
 
 	if err := h.db.Save(&album).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update album"})
@@ -229,7 +233,7 @@ func (h *AlbumHandler) AddPhotoToAlbum(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": processValidationError(err)})
 		return
 	}
 
@@ -334,7 +338,7 @@ func (h *AlbumHandler) UpdatePhotoOrder(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": processValidationError(err)})
 		return
 	}
 

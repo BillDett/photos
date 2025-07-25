@@ -27,7 +27,7 @@ func (h *TagHandler) CreateTag(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": processValidationError(err)})
 		return
 	}
 
@@ -122,7 +122,7 @@ func (h *TagHandler) UpdateTag(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": processValidationError(err)})
 		return
 	}
 
@@ -212,11 +212,18 @@ func (h *TagHandler) AddTagToPhoto(c *gin.Context) {
 	}
 
 	var req struct {
-		PhotoID uuid.UUID `json:"photo_id" binding:"required"`
+		PhotoID string `json:"photo_id" binding:"required"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": processValidationError(err)})
+		return
+	}
+
+	// Parse photo ID manually to provide better error message
+	photoUUID, err := uuid.Parse(req.PhotoID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid photo_id"})
 		return
 	}
 
@@ -233,7 +240,7 @@ func (h *TagHandler) AddTagToPhoto(c *gin.Context) {
 
 	// Verify photo exists
 	var photo models.Photo
-	if err := h.db.First(&photo, req.PhotoID).Error; err != nil {
+	if err := h.db.First(&photo, photoUUID).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Photo not found"})
 			return
@@ -244,14 +251,14 @@ func (h *TagHandler) AddTagToPhoto(c *gin.Context) {
 
 	// Check if relationship already exists
 	var existingRelation models.PhotoTag
-	if err := h.db.Where("tag_id = ? AND photo_id = ?", id, req.PhotoID).First(&existingRelation).Error; err == nil {
-		c.JSON(http.StatusConflict, gin.H{"error": "Tag is already applied to this photo"})
+	if err := h.db.Where("tag_id = ? AND photo_id = ?", id, photoUUID).First(&existingRelation).Error; err == nil {
+		c.JSON(http.StatusConflict, gin.H{"error": "Tag already associated with this photo"})
 		return
 	}
 
 	photoTag := models.PhotoTag{
 		TagID:   id,
-		PhotoID: req.PhotoID,
+		PhotoID: photoUUID,
 	}
 
 	if err := h.db.Create(&photoTag).Error; err != nil {
@@ -259,7 +266,7 @@ func (h *TagHandler) AddTagToPhoto(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{"message": "Tag added to photo successfully"})
+	c.JSON(http.StatusOK, gin.H{"message": "Tag added to photo successfully"})
 }
 
 // RemoveTagFromPhoto removes a tag from a photo

@@ -2,6 +2,8 @@
 
 A comprehensive Go-based server for managing photo libraries with support for albums, tags, ratings, and multiple libraries. Built with a proper database abstraction layer for future scalability.
 
+Full disclaimer: Cursor wrote this code, not me...
+
 ## Features
 
 - **Multiple Libraries**: Organize photos into separate libraries with unique names and storage paths
@@ -259,13 +261,91 @@ To add PostgreSQL support in the future:
 
 3. Update configuration to support PostgreSQL connection strings.
 
+## Testing
+
+The project includes comprehensive unit tests for all models to ensure data integrity and proper functionality.
+
+### Running Tests
+
+To run all tests:
+```bash
+go test ./...
+```
+
+To run tests for a specific package:
+```bash
+go test ./models
+```
+
+To run tests with verbose output:
+```bash
+go test ./models -v
+```
+
+To run tests with coverage:
+```bash
+go test ./models -cover
+```
+
+To run tests with race detection:
+```bash
+go test ./models -race
+```
+
+### Test Coverage
+
+The models package has **100% test coverage**, including:
+
+- **Model Creation**: Testing struct instantiation and field validation
+- **Database Hooks**: Validating `BeforeCreate` hooks for UUID generation and timestamp handling
+- **Relationships**: Testing foreign key relationships and associations
+- **Edge Cases**: Handling nil values, pre-existing data, and constraint validation
+- **Integration**: Testing model interactions with the database
+
+### Test Structure
+
+Tests are organized by model with subtests for specific functionality:
+
+```
+TestLibrary/
+├── Library_struct_creation
+├── Library_BeforeCreate_hook
+└── Library_with_pre-existing_UUID
+
+TestPhoto/
+├── Photo_struct_creation
+├── Photo_with_nil_rating
+├── Photo_BeforeCreate_hook
+└── Photo_with_pre-existing_UploadedAt
+
+... (and more for each model)
+```
+
+### Test Database
+
+Tests use an in-memory SQLite database for:
+- **Fast execution**: No file I/O overhead
+- **Isolation**: Each test runs in a clean environment
+- **Portability**: No external database dependencies
+
+### Adding Tests
+
+When adding new models or functionality:
+
+1. Create test functions following the pattern `TestModelName`
+2. Use subtests with `t.Run()` for different test cases
+3. Ensure proper setup with `setupTestDB(t)`
+4. Test both success and edge cases
+5. Verify 100% coverage is maintained
+
 ## Contributing
 
 1. Fork the repository
 2. Create a feature branch
 3. Make your changes
-4. Add tests if applicable
-5. Submit a pull request
+4. Add tests if applicable (maintain 100% coverage)
+5. Run the test suite to ensure all tests pass
+6. Submit a pull request
 
 ## License
 

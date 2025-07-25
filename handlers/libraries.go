@@ -55,7 +55,7 @@ func (h *LibraryHandler) CreateLibrary(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": processValidationError(err)})
 		return
 	}
 
@@ -163,18 +163,18 @@ func (h *LibraryHandler) UpdateLibrary(c *gin.Context) {
 	}
 
 	var req struct {
-		Name        string `json:"name" binding:"required,min=1,max=100"`
-		Description string `json:"description" binding:"max=500"`
-		Images      string `json:"images" binding:"required,min=1,max=500"`
+		Name        *string `json:"name,omitempty" binding:"omitempty,min=1,max=100"`
+		Description *string `json:"description,omitempty" binding:"omitempty,max=500"`
+		Images      *string `json:"images,omitempty" binding:"omitempty,min=1,max=500"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": processValidationError(err)})
 		return
 	}
 
-	// Validate the images path format
-	if !isValidPath(req.Images) {
+	// Validate the images path format if provided
+	if req.Images != nil && !isValidPath(*req.Images) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid images path format"})
 		return
 	}
@@ -189,32 +189,41 @@ func (h *LibraryHandler) UpdateLibrary(c *gin.Context) {
 		return
 	}
 
-	// Check if another library with same name exists
-	var existingLibrary models.Library
-	if err := h.db.Where("name = ? AND id != ?", req.Name, id).First(&existingLibrary).Error; err == nil {
-		c.JSON(http.StatusConflict, gin.H{"error": "Library with this name already exists"})
-		return
-	}
-
-	// Check if another library with same images path exists (only if path is changing)
-	if req.Images != library.Images {
-		if err := h.db.Where("images = ? AND id != ?", req.Images, id).First(&existingLibrary).Error; err == nil {
-			c.JSON(http.StatusConflict, gin.H{"error": "Library with this images path already exists"})
+	// Check if another library with same name exists (only if name is being updated)
+	if req.Name != nil {
+		var existingLibrary models.Library
+		if err := h.db.Where("name = ? AND id != ?", *req.Name, id).First(&existingLibrary).Error; err == nil {
+			c.JSON(http.StatusConflict, gin.H{"error": "Library with this name already exists"})
 			return
 		}
 	}
 
-	pathChanged := req.Images != library.Images
+	// Check if another library with same images path exists (only if path is changing)
+	var pathChanged bool
+	if req.Images != nil && *req.Images != library.Images {
+		var existingLibrary models.Library
+		if err := h.db.Where("images = ? AND id != ?", *req.Images, id).First(&existingLibrary).Error; err == nil {
+			c.JSON(http.StatusConflict, gin.H{"error": "Library with this images path already exists"})
+			return
+		}
+		pathChanged = true
+	}
 
-	// Update fields
-	library.Name = req.Name
-	library.Description = req.Description
-	library.Images = req.Images
+	// Update only provided fields
+	if req.Name != nil {
+		library.Name = *req.Name
+	}
+	if req.Description != nil {
+		library.Description = *req.Description
+	}
+	if req.Images != nil {
+		library.Images = *req.Images
+	}
 
 	// If images path is changing, handle directory operations
 	if pathChanged {
 		// Create new directory
-		if err := createDirectoryIfNotExists(req.Images); err != nil {
+		if err := createDirectoryIfNotExists(library.Images); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create new images directory"})
 			return
 		}
@@ -227,21 +236,9 @@ func (h *LibraryHandler) UpdateLibrary(c *gin.Context) {
 	if err := h.db.Save(&library).Error; err != nil {
 		// If database save failed and we created a new directory, clean it up
 		if pathChanged {
-			removeDirectoryIfExists(req.Images)
+			removeDirectoryIfExists(library.Images)
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update library"})
-		return
-	}
-
-	// If path changed successfully, remove old directory (only if empty or contains no important files)
-	if pathChanged {
-		// For safety, we'll leave the old directory for manual cleanup
-		// In production, you might want to implement a more sophisticated migration
-		c.JSON(http.StatusOK, gin.H{
-			"library": library,
-			"message": "Library updated successfully",
-			"note":    "If images path changed, old directory was preserved for manual cleanup",
-		})
 		return
 	}
 

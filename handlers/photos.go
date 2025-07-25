@@ -331,7 +331,7 @@ func (h *PhotoHandler) UpdatePhoto(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": processValidationError(err)})
 		return
 	}
 
@@ -463,7 +463,7 @@ func (h *PhotoHandler) CopyPhoto(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": processValidationError(err)})
 		return
 	}
 
@@ -607,6 +607,13 @@ func (h *PhotoHandler) addTagToPhoto(photo *models.Photo, tagName string) error 
 		} else {
 			return err
 		}
+	}
+
+	// Check if relationship already exists
+	var existingPhotoTag models.PhotoTag
+	if err := h.db.Where("photo_id = ? AND tag_id = ?", photo.ID, tag.ID).First(&existingPhotoTag).Error; err == nil {
+		// Relationship already exists, return success
+		return nil
 	}
 
 	// Create photo-tag relationship
