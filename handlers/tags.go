@@ -3,6 +3,7 @@ package handlers
 import (
 	"net/http"
 	"photo-library-server/models"
+	"regexp"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -19,6 +20,15 @@ func NewTagHandler(db *gorm.DB) *TagHandler {
 	return &TagHandler{db: db}
 }
 
+// isValidHexColor validates if a string is a valid hex color format
+func isValidHexColor(color string) bool {
+	if color == "" {
+		return true // Empty color is allowed
+	}
+	matched, _ := regexp.MatchString("^#[0-9A-Fa-f]{6}$", color)
+	return matched
+}
+
 // CreateTag creates a new tag
 func (h *TagHandler) CreateTag(c *gin.Context) {
 	var req struct {
@@ -28,6 +38,12 @@ func (h *TagHandler) CreateTag(c *gin.Context) {
 
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": processValidationError(err)})
+		return
+	}
+
+	// Validate hex color format
+	if !isValidHexColor(req.Color) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid color format. Color must be a valid hex color (e.g., #FF0000)"})
 		return
 	}
 
@@ -123,6 +139,12 @@ func (h *TagHandler) UpdateTag(c *gin.Context) {
 
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": processValidationError(err)})
+		return
+	}
+
+	// Validate hex color format
+	if !isValidHexColor(req.Color) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid color format. Color must be a valid hex color (e.g., #FF0000)"})
 		return
 	}
 
